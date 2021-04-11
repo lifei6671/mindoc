@@ -66,6 +66,14 @@ func (c *DocumentController) Index() {
 			c.Data["Content"] = template.HTML(doc.Release)
 
 			c.Data["Description"] = utils.AutoSummary(doc.Release, 120)
+			doc.IncrViewCount(doc.DocumentId)
+			c.Data["ViewCount"] = doc.ViewCount + 1
+			c.Data["DocumentId"] = doc.DocumentId
+
+			// 获取评论、分页
+			comments, count, _ := models.NewComment().QueryCommentByDocumentId(doc.DocumentId, 1, conf.PageSize, c.Member)
+			page := pagination.PageUtil(int(count), 1, conf.PageSize, comments)
+			c.Data["Page"] = page
 		}
 	} else {
 		c.Data["Title"] = "概要"
@@ -84,7 +92,6 @@ func (c *DocumentController) Index() {
 	}
 	c.Data["Model"] = bookResult
 	c.Data["Result"] = template.HTML(tree)
-
 }
 
 // 阅读文档
@@ -139,6 +146,7 @@ func (c *DocumentController) Read() {
 
 	doc.Processor()
 
+	c.Data["DocumentId"] = doc.DocumentId
 	attach, err := models.NewAttachment().FindListByDocumentId(doc.DocumentId)
 	if err == nil {
 		doc.AttachList = attach
@@ -147,19 +155,28 @@ func (c *DocumentController) Read() {
 	doc.IncrViewCount(doc.DocumentId)
 	c.Data["ViewCount"] = doc.ViewCount + 1
 
+	// 获取评论、分页
+	comments, count, _ := models.NewComment().QueryCommentByDocumentId(doc.DocumentId, 1, conf.PageSize, c.Member)
+	page := pagination.PageUtil(int(count), 1, conf.PageSize, comments)
+	c.Data["Page"] = page
+
 	if c.IsAjax() {
 		var data struct {
-			DocTitle string `json:"doc_title"`
-			Body     string `json:"body"`
-			Title    string `json:"title"`
-			Version  int64  `json:"version"`
-			ViewCount int   `json:"view_count"`
+			DocTitle  string            `json:"doc_title"`
+			Body      string            `json:"body"`
+			Title     string            `json:"title"`
+			Version   int64             `json:"version"`
+			ViewCount int               `json:"view_count"`
+			DocId     int               `json:"doc_id"`
+			Page      pagination.Page   `json:"page"`
 		}
 		data.DocTitle = doc.DocumentName
 		data.Body = doc.Release
 		data.Title = doc.DocumentName + " - Powered by MinDoc"
 		data.Version = doc.Version
 		data.ViewCount = doc.ViewCount + 1
+		data.DocId = doc.DocumentId
+		data.Page = page
 
 		c.JsonResult(0, "ok", data)
 	}
